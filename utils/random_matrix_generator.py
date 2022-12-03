@@ -21,18 +21,15 @@ def createRandomMatrix(n):
     return matrix
 
 
-def saveMatrix(matrixA, matrixB, filename):
+def saveMatrix(matrix, filename):
     if os.path.exists(filename): 
         os.remove(filename)
     else:   
         print("New file created: ",filename)
     f = open(filename, "w")
-    for i, matrix in enumerate([matrixA, matrixB]):
-        if i != 0:
-            f.write("\n")
-        for line in matrix:
-            #pdb.set_trace()
-            f.write("\t".join(map(str, line)) + "\n")
+    for line in matrix:
+        #pdb.set_trace()
+        f.write("\t".join(map(str, line)) + "\n")
 
 
 def saveCSRMatrix(CSR_matrix, filename):
@@ -60,38 +57,27 @@ def main():
     n = args.n
     outpath = args.dump
     #Create dense matrix
-    matrixA = createRandomMatrix(n)
-    matrixB = createRandomMatrix(n)
-    #print(matrixA)
+    matrix = createRandomMatrix(n)
+    #print(matrix)
     #Convert to sparse matrix by replacing value below threshold to 0
     if (args.sparsity):
-        #Replace random x %element to 0 in matrixA
-        matrixA = np.asarray(matrixA)
-        indicesA = np.random.choice(np.arange(matrixA.size), replace=False,
-                           size=int(matrixA.size * (args.sparsity/100)))
-        flatA  = matrixA.flatten()
-        flatA[indicesA] = 0
-        #Replace random x %element to 0 in matrixB
-        matrixB = np.asarray(matrixB)
-        indicesB = np.random.choice(np.arange(matrixB.size), replace=False,
-                           size=int(matrixB.size * (args.sparsity/100)))
-        flatB  = matrixB.flatten()
-        flatB[indicesB] = 0
+        #Replace random x %element to 0 in matrix
+        matrix = np.asarray(matrix)
+        indices = np.random.choice(np.arange(matrix.size), replace=False,
+                            size=int(matrix.size * (args.sparsity/100)))
+        flat  = matrix.flatten()
+        flat[indices] = 0
+
         #Reshape it back to square matrix    
-        flatA = flatA.reshape(n,n)
-        flatB = flatB.reshape(n,n)
-        #print(flatA)
-        matrixA_csr = sparse.csr_matrix(flatA)
-        #print(matrixA_csr)
-        matrixB_csr = sparse.csr_matrix(flatB)
-        matrixA = flatA.tolist()
-        matrixB = flatB.tolist()
-        csr_Amatrix = "csrA_"+args.dump
-        csr_Bmatrix = "csrB_"+args.dump
-        saveCSRMatrix(matrixA_csr, csr_Amatrix)
-        saveCSRMatrix(matrixB_csr, csr_Bmatrix)
-        #print(matrixA)
-    saveMatrix(matrixA, matrixB, args.dump)
+        flat = flat.reshape(n,n)
+        #print(flat)
+        # matrix_csr = sparse.csr_matrix(flat)
+        #print(matrix_csr)
+        matrix = flat.tolist()
+        # csr_matrix = "csr_"+args.dump
+        # saveCSRMatrix(matrix_csr, csr_matrix)
+        #print(matrix)
+    saveMatrix(matrix, args.dump)
 
 if __name__ == '__main__':
     main()
