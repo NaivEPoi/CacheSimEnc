@@ -1,4 +1,4 @@
-/src/__pycache__
-/src/*.pyc
 /logs/
 /bin/
+*.pyc
+Simulator/src/stats.txt
