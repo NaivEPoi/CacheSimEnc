@@ -158,7 +158,7 @@ class Cache:
 
     def parse_address(self, address):
         #Calculate our address length and convert the address to binary string
-        address_size = len(address) * 4
+        address_size = len(address) * 4 #Size will be 56 bits
         binary_address = bin(int(address, 16))[2:].zfill(address_size)
 
         block_offset = binary_address[-self.block_offset_size:]
