@@ -1,8 +1,10 @@
 import math, block, response
 import pprint
+from random import SystemRandom
+import addrenc
 
 class Cache:
-    def __init__(self, name, word_size, block_size, n_blocks, associativity, hit_time, write_time, write_back, logger, next_level=None, policy =None):
+    def __init__(self, name, word_size, block_size, n_blocks, associativity, hit_time, write_time, write_back, logger, next_level = None, policy = None, key = None):
         #Parameters configured by the user
         self.name = name
         self.word_size = word_size
@@ -13,6 +15,7 @@ class Cache:
         self.write_time = write_time
         self.write_back = write_back
         self.logger = logger
+        self.key = key
         
         #Total number of sets in the cache
         self.n_sets = int(n_blocks / associativity)
@@ -39,14 +42,24 @@ class Cache:
                     index = '0'
                 self.data[index] = {}   #Create a dictionary of blocks for each set
 
+        # if last level cache, initialize the key
+        if self.next_level:
+            if not self.next_level.next_level:
+                # if last level cache, do address encryption
+                self.key = bin(SystemRandom().getrandbits(112))[2:].zfill(112)
 
     def read(self, address, current_step):
         r = None
+        p_addr = address
         #Check if this is main memory
         #Main memory is always a hit
         if not self.next_level:
             r = response.Response({self.name:True}, self.hit_time)
         else:
+            # if last level cache, do address encryption
+            if not self.next_level.next_level:
+                address = addrenc.AddrEnc().encrypt(address, self.key)
+                self.logger.info('\tEncrypt address ' + p_addr + ' to ' + address + ' in read')
             #Parse our address to look through this cache
             block_offset, index, tag = self.parse_address(address)
 
@@ -58,7 +71,7 @@ class Cache:
                 r = response.Response({self.name:True}, self.hit_time)
             else:
                 #Read from the next level of memory
-                r = self.next_level.read(address, current_step)
+                r = self.next_level.read(p_addr, current_step)
                 r.deepen(self.write_time, self.name)
 
 
@@ -77,13 +90,20 @@ class Cache:
                        oldest_tag = in_cache[0] 
                        for b in in_cache:
                           if self.data[index][b].last_accessed < self.data[index][oldest_tag].last_accessed:
-                             oldest_tag = b
+                            oldest_tag = b
                        #Write the block back down if it's dirty and we're using write back
                        if self.write_back:
                           if self.data[index][oldest_tag].is_dirty():
-                             self.logger.info('\tWriting back block ' + address + ' to ' + self.next_level.name)
-                             temp = self.next_level.write(self.data[index][oldest_tag].address, True, current_step)
-                             r.time += temp.time
+                            self.logger.info('\tWriting back block ' + p_addr + ' to ' + self.next_level.name)
+                            # if last level cache, do address decryption before write back
+                            if not self.next_level.next_level:
+                                tag_addr = self.data[index][oldest_tag].address
+                                wb_addr = addrenc.AddrEnc().decrypt(tag_addr, self.key)
+                                self.logger.info('\tDecrypt address ' + tag_addr + ' to ' + wb_addr + ' in read before write back')
+                                temp = self.next_level.write(wb_addr, True, current_step)
+                            else:
+                                temp = self.next_level.write(self.data[index][oldest_tag].address, True, current_step)
+                            r.time += temp.time
                        #Delete the old block and write the new one
                        del self.data[index][oldest_tag]
                        self.data[index][tag] = block.Block(self.block_size, current_step, False, address)
@@ -95,9 +115,13 @@ class Cache:
     def write(self, address, from_cpu, current_step):
         #wat is cache pls
         r = None
+        p_addr = address
         if not self.next_level:
             r = response.Response({self.name:True}, self.write_time)
         else:
+            if not self.next_level.next_level:
+                address = addrenc.AddrEnc().encrypt(address, self.key)
+                self.logger.info('\tEncrypt address ' + p_addr + ' to ' + address + ' in write')
             block_offset, index, tag = self.parse_address(address)
             in_cache = list(self.data[index].keys())
 
@@ -109,8 +133,8 @@ class Cache:
                     r = response.Response({self.name:True}, self.write_time)
                 else:
                     #Send to next level cache and deepen results if we have write through
-                    self.logger.info('\tWriting through block ' + address + ' to ' + self.next_level.name)
-                    r = self.next_level.write(address, from_cpu, current_step)
+                    self.logger.info('\tWriting through block ' + p_addr + ' to ' + self.next_level.name)
+                    r = self.next_level.write(p_addr, from_cpu, current_step)
                     r.deepen(self.write_time, self.name)
 
             else: 
@@ -128,8 +152,8 @@ class Cache:
                         if self.write_back:
                            r = response.Response({self.name:False}, self.write_time)
                         else:
-                           self.logger.info('\tWriting through block ' + address + ' to ' + self.next_level.name)
-                           r = self.next_level.write(address, from_cpu, current_step)
+                           self.logger.info('\tWriting through block ' + p_addr + ' to ' + self.next_level.name)
+                           r = self.next_level.write(p_addr, from_cpu, current_step)
                            r.deepen(self.write_time, self.name)
             
                      elif len(in_cache) == self.associativity:
@@ -137,15 +161,22 @@ class Cache:
                           oldest_tag = in_cache[0]
                           for b in in_cache:
                               if self.data[index][b].last_accessed < self.data[index][oldest_tag].last_accessed:
-                                 oldest_tag = b
+                                oldest_tag = b
                           if self.write_back:
                              if self.data[index][oldest_tag].is_dirty():
-                                self.logger.info('\tWriting back block ' + address + ' to ' + self.next_level.name)
-                                r = self.next_level.write(self.data[index][oldest_tag].address, from_cpu, current_step)
+                                self.logger.info('\tWriting back block ' + p_addr + ' to ' + self.next_level.name)
+                                # if last level cache, do address decryption before write back
+                                if not self.next_level.next_level:
+                                    tag_addr = self.data[index][oldest_tag].address
+                                    wb_addr = addrenc.AddrEnc().decrypt(tag_addr, self.key)
+                                    self.logger.info('\tDecrypt address ' + tag_addr + ' to ' + wb_addr + ' in write before write back')
+                                    r = self.next_level.write(wb_addr, from_cpu, current_step)
+                                else:
+                                    r = self.next_level.write(self.data[index][oldest_tag].address, from_cpu, current_step)                                
                                 r.deepen(self.write_time, self.name)
                           else:
-                               self.logger.info('\tWriting through block ' + address + ' to ' + self.next_level.name)
-                               r = self.next_level.write(address, from_cpu, current_step)
+                               self.logger.info('\tWriting through block ' + p_addr + ' to ' + self.next_level.name)
+                               r = self.next_level.write(p_addr, from_cpu, current_step)
                                r.deepen(self.write_time, self.name)
                           del self.data[index][oldest_tag]
 
