@@ -9,7 +9,7 @@ do
   f=$(echo "${entry##*/}");
   tracename=$(echo $f| cut  -d'.' -f 1);
   echo $tracename	
-  filename="../../logs/${tracename}_level_3.log"
+  filename="../../logs/${tracename}_level_3_enc.log"
   echo "Running $tracename on simulator"
   time python3 ./cache_simulator.py -dc ../config/config_simple_multilevel -t $entry | tee stats.txt
   mv cache_simulator.log $filename  

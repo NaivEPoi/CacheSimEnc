@@ -18,7 +18,9 @@ cache_2:
 cache_3:
   blocks: 256
   associativity: 8
-  hit_time: 100
+  hit_time: 102
+
+# addition delay time: 6 XOR gates * 4 stage = 24 XOR gates ~ 2 cycles
 
 mem: #required
   hit_time: 1000 #cycles
